@@ -2,13 +2,12 @@ import requests
 import time
 
 class ModrinthAPI:
-    def __init__(self, config):
+    def __init__(self):
         self.API = "https://api.modrinth.com/v2/"
         self.reqcount = 0
         self.maxcalls = 300
         self.accesstime = time.time_ns()
         self.minute = 60 * 10 ** 9
-        self.config = config
 
     def ratelimit(self):
         self.reqcount += 1
@@ -42,8 +41,6 @@ class ModrinthAPI:
             raise err
 
     def fetch_versions(self, mod_id, game_version=None):
-        if game_version == None:
-            game_version = self.config['game_version']
         filter = {
             "game_version": [game_version],
             "loaders": ["fabric"]
@@ -57,8 +54,6 @@ class ModrinthAPI:
         return [dep['id'] for dep in res['projects']]
     
     def get_mod(self, name, game_version=None):
-        if game_version == None:
-            game_version = self.config['game_version']
         res = self.get(f'project/{name}')
         id = res['id']
         latest = self.fetch_versions(id, game_version)[0]

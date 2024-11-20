@@ -1,4 +1,9 @@
 {
-    "game_version": "1.21.1",
-    "download_path": "./mods"
+    "game" : {
+        "game_version": "1.21.1",
+        "mod_path": "/home/zap/Development/mcmodtools/mods"
+    },
+    "modtools" : {
+        "list_path": "/home/zap/Development/mcmodtools/"
+    }
 }

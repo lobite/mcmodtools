@@ -1,3 +1,4 @@
 env/
 modlist.csv
 modtools/__pycache__
+modlist.json
