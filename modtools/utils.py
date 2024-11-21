@@ -85,7 +85,7 @@ def batch_get_mod(batch, game_version, slug):
         for future in concurrent.futures.as_completed(futures):
             res_mod = future.result()
             batch_mods.append(res_mod)
-            print(f'fetched mod {res_mod['name']}')
+            print(f'fetched mod {res_mod["name"]}')
     return batch_mods
 
 def batch_download(batch, path):
