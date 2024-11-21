@@ -40,12 +40,13 @@ class ModrinthAPI:
             v = requests.get(self.API + f'version/{mod["version_id"]}')
             v.raise_for_status()
             ver = v.json()
-            mod_file = Path(path + ver['files'][0]['filename'])
+            file_to_get = next(f for f in ver['files'] if f['primary'] == True)
+            mod_file = Path(path + file_to_get['filename'])
             if not mod_file.is_file():
                 self.ratelimit()
-                c = requests.get(next(f for f in ver if f['primary'] == 'true')['url'])
+                c = requests.get(file_to_get['url'])
                 mod_file.open('xb').write(c.content)
-                return ver['files'][0]['filename']
+                print(f'downloaded {file_to_get["filename"]}')
             else:
                 print(f'file for {mod["name"]} already exists, skipping')
         except requests.exceptions.RequestException as err:

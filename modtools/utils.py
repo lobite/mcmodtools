@@ -94,7 +94,8 @@ def batch_download(batch, path):
         for mod in batch:
             futures.append(executor.submit(modAPI.download, mod=mod, path=path))
         for future in concurrent.futures.as_completed(futures):
-            raise future.exception()
+            try: future.result()
+            except Exception as e: raise e 
 
 def create_modlist(userlist, path, game_version):
     modlist = batch_get_mod(userlist, game_version, slug=True)

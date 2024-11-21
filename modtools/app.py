@@ -28,7 +28,7 @@ def main():
             batch_download(modlist, config['game']['mod_path'])
             print(f'modtools successfully downloaded {len(modlist)} mods to {config["game"]["mod_path"]}')
         except Exception as e:
-            print(e)
+            raise e
             # print(getMod(collection[0]), args.version)
 
 if __name__ == "__main__":
