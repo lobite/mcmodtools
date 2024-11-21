@@ -1,4 +1,7 @@
 env/
+dist/
+test/
+mcmodtools.egg-info/
 modlist.csv
 modtools/__pycache__
 modlist.json
