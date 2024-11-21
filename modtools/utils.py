@@ -1,29 +1,32 @@
 import csv
 import argparse
 import json
+import time
 from pathlib import Path
 import concurrent.futures
 from platformdirs import user_config_dir, user_data_dir
-from modtool import ModrinthAPI
-from exceptions import UserCancel
+from modtools.modtool import ModrinthAPI
+from modtools.exceptions import UserCancel
+from modtools.prompt import prompt
 
 modAPI = ModrinthAPI()
 
 def load_config(prod=False):
     if prod:
-        config_file = Path(user_config_dir + 'config.json')
+        config_file = Path(user_config_dir() + '/' + 'config.json')
         if config_file.is_file():
             with config_file.open('r') as f:
                 return json.load(f)
         else:
             # create config file
+            # the / after the directory is SUPER NECESSARY!!!!
             defaults = {
                 "game" : {
                     "game_version": "1.21.1",
                     "mod_path": "./mods/"
                 },
                 "modtools" : {
-                    "list_path": user_data_dir
+                    "list_path": user_data_dir() + '/'
                 }
             }
             with config_file.open('w') as f:
@@ -42,7 +45,6 @@ def parse_args():
     parser.add_argument("list_path",
                         help="Path to CSV list containing mods")
     parser.add_argument("-p", "--mod_path",
-                        default="./mods",
                         help="Path to download mods to")
     parser.add_argument("-v", "--version",
                         default="1.21.1")
@@ -51,13 +53,6 @@ def parse_args():
 
     return parser.parse_args()
 
-def prompt(q):
-    while True:
-        i = input(f'{q} (Y/n): ')
-        if i == 'Y':
-            return True
-        elif i == 'n':
-            return False
 
 def parse_user_list(path):
     prefix_a = "https://modrinth.com/mod/"
@@ -74,12 +69,19 @@ def parse_user_list(path):
                 userlist = list(filter(None, userlist))
     return userlist
 
-def batch_get_mod(batch):
+def batch_get_mod(batch, game_version, slug):
     batch_mods = []
-    with concurrent.futures.ThreadPoolExecutor() as executor:
+    # for mod in batch:
+    #     batch_mods.append(modAPI.get_mod(mod, game_version))
+    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
         futures = []
+        # count = 0
         for mod in batch:
-            futures.append(executor.submit(modAPI.get_mod, id_or_slug=mod))
+            futures.append(executor.submit(modAPI.get_mod, query=mod, game_version = game_version, slug = slug))
+            print(f'fetching {mod}...')
+            # count += 1
+            # if count % 5 == 0:
+            #     time.sleep(5)
         for future in concurrent.futures.as_completed(futures):
             res_mod = future.result()
             batch_mods.append(res_mod)
@@ -92,18 +94,31 @@ def batch_download(batch, path):
         for mod in batch:
             futures.append(executor.submit(modAPI.download, mod=mod, path=path))
         for future in concurrent.futures.as_completed(futures):
-            print(f'downloaded {future.result()}')
+            raise future.exception()
 
-def create_modlist(userlist, path):
-    modlist = batch_get_mod(userlist)
-    print(f'loaded {len(modlist)} mods, checking missing dependencies...')
-    discovered_dependencies = auto_get_dependencies(modlist)
+def create_modlist(userlist, path, game_version):
+    modlist = batch_get_mod(userlist, game_version, slug=True)
+    modlist_resolved = []
+    for mod in modlist:
+        modlist_resolved.append(modAPI.resolve_conflict(mod))
+    print(f'loaded {len(modlist_resolved)} mods from provided list, checking missing dependencies...')
+    discovered_dependencies_list = auto_get_dependencies(modlist_resolved)
+    discovered_dependencies_list_named = []
+    print("retrieveing names...")
+    for dd in discovered_dependencies_list:
+        discovered_dependencies_list_named.append(modAPI.get_slug_from_id(dd))
+        time.sleep(1)
+    print(*discovered_dependencies_list_named, sep=', ')
     if not prompt("add missing dependencies to list?"):
         raise UserCancel('cancelled retrieving missing dependencies')
-    modlist += batch_get_mod(discovered_dependencies)
+    discovered_dependencies = batch_get_mod(discovered_dependencies_list, game_version, slug=False)
+    discovered_dependencies_resolved = []
+    for dd in discovered_dependencies:
+        discovered_dependencies_resolved.append(modAPI.resolve_conflict(dd))
+    modlist_resolved += discovered_dependencies_resolved
     with open(path, 'w') as f:
-        json.dump(modlist, f, indent=4)
-    return modlist
+        json.dump(modlist_resolved, f, indent=4)
+    return modlist_resolved
 
 def auto_get_dependencies(modlist):
     known_dependencies = set([d for m in modlist for d in m['dependencies']])
@@ -118,7 +133,7 @@ def auto_get_dependencies(modlist):
         if new_discovered == 0:
             break
         total_discovered += new_discovered
-    print(f'{total_discovered} dependencies detected')
+    print(f'{total_discovered} missing dependencies detected')
     return filter(None, new_dependencies)
     
 
