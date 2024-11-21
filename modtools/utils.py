@@ -73,7 +73,7 @@ def batch_get_mod(batch, game_version, slug):
     batch_mods = []
     # for mod in batch:
     #     batch_mods.append(modAPI.get_mod(mod, game_version))
-    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+    with concurrent.futures.ThreadPoolExecutor() as executor:
         futures = []
         # count = 0
         for mod in batch:
@@ -108,7 +108,6 @@ def create_modlist(userlist, path, game_version):
     print("retrieveing names...")
     for dd in discovered_dependencies_list:
         discovered_dependencies_list_named.append(modAPI.get_slug_from_id(dd))
-        time.sleep(1)
     print(*discovered_dependencies_list_named, sep=', ')
     if not prompt("add missing dependencies to list?"):
         raise UserCancel('cancelled retrieving missing dependencies')

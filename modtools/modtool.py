@@ -54,7 +54,7 @@ class ModrinthAPI:
 
     def get_slug_from_id(self, mod_id):
         res = requests.get(f'https://modrinth.com/mod/{mod_id}', allow_redirects=False)
-        return res.headers['location']
+        return res.headers['location'].removeprefix('/mod/')
 
     def fetch_versions(self, query, game_version, slug):
         url = f'project/{query}/version'
@@ -126,10 +126,8 @@ class ModrinthAPI:
         return dep
     
     def get_mod(self, query, game_version, slug):
-        res = self.get(f'project/{query}')
-        id = res['id']
         try:
-            candidates = self.fetch_versions(id, game_version, slug)
+            candidates = self.fetch_versions(query, game_version, slug)
         except Exception as e:
             raise e
 
