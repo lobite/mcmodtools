@@ -41,7 +41,7 @@ class ModrinthAPI:
             v.raise_for_status()
             ver = v.json()
             mod_file = Path(path + ver['files'][0]['filename'])
-            if mod_file.is_file():
+            if not mod_file.is_file():
                 self.ratelimit()
                 c = requests.get(next(f for f in ver if f['primary'] == 'true')['url'])
                 mod_file.open('xb').write(c.content)
