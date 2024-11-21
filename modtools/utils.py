@@ -13,7 +13,7 @@ modAPI = ModrinthAPI()
 
 def load_config(prod=False):
     if prod:
-        config_file = Path(user_config_dir() + '/' + 'config.json')
+        config_file = Path(user_config_dir() + '/' + 'modtools-config.json')
         if config_file.is_file():
             with config_file.open('r') as f:
                 return json.load(f)
