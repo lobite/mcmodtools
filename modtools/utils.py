@@ -34,7 +34,7 @@ def load_config(prod=False):
                 return defaults
     # dev configs
     else:
-        with open('config.json', 'r') as config_file:
+        with open('test/config.json', 'r') as config_file:
             return json.load(config_file)
 
 def parse_args():
