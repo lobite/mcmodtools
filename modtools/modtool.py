@@ -31,12 +31,17 @@ class ModrinthAPI:
         except requests.exceptions.RequestException as err:
             raise err
 
-    def download(self, url, path):
+    def download(self, mod, path):
         try:
             self.ratelimit()
-            c = requests.get(url)
-            c.raise_for_status()
-            open(path, "xb").write(c.content)
+            v = requests.get(self.API + f'version/{mod["version_id"]}')
+            v.raise_for_status()
+            ver = v.json()
+            print("AAAAAAAAAAA" + str(ver))
+            self.ratelimit()
+            c = requests.get(ver['files'][0]['url'])
+            open(path + ver['files'][0]['filename'], "xb").write(c.content)
+            return ver['files'][0]['filename']
         except requests.exceptions.RequestException as err:
             raise err
 
@@ -48,18 +53,22 @@ class ModrinthAPI:
         url = f'project/{mod_id}/version'
         return self.get(url, filter)
     
-    def check_dependencies(self, mod_id):
-        url = f'project/{mod_id}/dependencies'
+    def check_dependencies(self, version_id):
+        url = f'version/{version_id}'
         res = self.get(url)
-        return [dep['id'] for dep in res['projects']]
+        dep = []
+        for d in res['dependencies']:
+            if d['dependency_type'] == 'required':
+                dep.append(d['project_id'])
+        return dep
     
-    def get_mod(self, name, game_version=None):
-        res = self.get(f'project/{name}')
+    def get_mod(self, id_or_slug, game_version=None):
+        res = self.get(f'project/{id_or_slug}')
         id = res['id']
         latest = self.fetch_versions(id, game_version)[0]
-        dependencies = self.check_dependencies(id)
+        dependencies = self.check_dependencies(latest['id'])
         return {
-            "name": name,
+            "name": latest['name'],
             "project_id": id,
             "version_id": latest['id'],
             "date": latest['date_published'],

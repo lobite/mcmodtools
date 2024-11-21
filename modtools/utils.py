@@ -5,6 +5,7 @@ from pathlib import Path
 import concurrent.futures
 from platformdirs import user_config_dir, user_data_dir
 from modtool import ModrinthAPI
+from exceptions import UserCancel
 
 modAPI = ModrinthAPI()
 
@@ -19,7 +20,7 @@ def load_config(prod=False):
             defaults = {
                 "game" : {
                     "game_version": "1.21.1",
-                    "mod_path": "./mods"
+                    "mod_path": "./mods/"
                 },
                 "modtools" : {
                     "list_path": user_data_dir
@@ -78,24 +79,46 @@ def batch_get_mod(batch):
     with concurrent.futures.ThreadPoolExecutor() as executor:
         futures = []
         for mod in batch:
-            futures.append(executor.submit(modAPI.get_mod, name=mod))
-            print(f'fetching mod {mod}...')
+            futures.append(executor.submit(modAPI.get_mod, id_or_slug=mod))
         for future in concurrent.futures.as_completed(futures):
             res_mod = future.result()
             batch_mods.append(res_mod)
             print(f'fetched mod {res_mod['name']}')
     return batch_mods
 
+def batch_download(batch, path):
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        futures = []
+        for mod in batch:
+            futures.append(executor.submit(modAPI.download, mod=mod, path=path))
+        for future in concurrent.futures.as_completed(futures):
+            print(f'downloaded {future.result()}')
 
 def create_modlist(userlist, path):
     modlist = batch_get_mod(userlist)
-    alldependencies = set([d for m in modlist for d in m['dependencies']])
-    print(alldependencies)
-    newdependencies = []
-    for d in alldependencies:
-        newdependencies += next((mod for mod in modlist if mod['project_id'] == d), None)
-    newdependencies = filter(None, newdependencies)
-    print(newdependencies)
-    # with open(path, 'w') as f:
-    #     json.dump(modlist, f, indent=4)
+    print(f'loaded {len(modlist)} mods, checking missing dependencies...')
+    discovered_dependencies = auto_get_dependencies(modlist)
+    if not prompt("add missing dependencies to list?"):
+        raise UserCancel('cancelled retrieving missing dependencies')
+    modlist += batch_get_mod(discovered_dependencies)
+    with open(path, 'w') as f:
+        json.dump(modlist, f, indent=4)
     return modlist
+
+def auto_get_dependencies(modlist):
+    known_dependencies = set([d for m in modlist for d in m['dependencies']])
+    new_dependencies = []
+    total_discovered = 0
+    while True:
+        new_discovered = 0
+        for d in known_dependencies:
+            if (not any(m['project_id'] == d for m in modlist)) and (not any(nd == d for nd in new_dependencies)):
+                new_dependencies.append(d)
+                new_discovered += 1
+        if new_discovered == 0:
+            break
+        total_discovered += new_discovered
+    print(f'{total_discovered} dependencies detected')
+    return filter(None, new_dependencies)
+    
+
