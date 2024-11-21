@@ -47,7 +47,7 @@ class ModrinthAPI:
                 mod_file.open('xb').write(c.content)
                 return ver['files'][0]['filename']
             else:
-                print(f'file for {mod['name']} already exists, skipping')
+                print(f'file for {mod["name"]} already exists, skipping')
         except requests.exceptions.RequestException as err:
             raise err
 
@@ -101,7 +101,7 @@ class ModrinthAPI:
                 for v in all_versions
                 if "fabric" in v['loaders'] and game_version in v['game_versions'] and v['version_type'] == 'release'), None
             )
-            print(f'[WARN]: latest version {target_version['name']} for {mod_name} is {target_version['version_type']}, and a release version {newest_release['name']} is available.')
+            print(f'[WARN]: latest version {target_version["name"]} for {mod_name} is {target_version["version_type"]}, and a release version {newest_release["name"]} is available.')
             return {
                 'status': 2,
                 'version': target_version['id'],
@@ -158,10 +158,10 @@ class ModrinthAPI:
                     "dependencies": mod['dependencies']['version']
                 }
             case 1:
-                print(f'no compatible version was found for {mod['name']}, and was skipped')
+                print(f'no compatible version was found for {mod["name"]}, and was skipped')
                 return
             case 2:
-                if prompt(f'use release version over latest version for {mod['name']}?'):
+                if prompt(f'use release version over latest version for {mod["name"]}?'):
                     return {
                         "name": mod['name'],
                         "project_id": mod['project_id'],
@@ -176,7 +176,7 @@ class ModrinthAPI:
                         "dependencies": mod['dependencies']['version']
                     }
             case 3:
-                if prompt(f'[WARN]: {mod['name']} has no stable release. continue?'):
+                if prompt(f'[WARN]: {mod["name"]} has no stable release. continue?'):
                     return {
                         "name": mod['name'],
                         "project_id": mod['project_id'],
@@ -185,7 +185,7 @@ class ModrinthAPI:
                     }
                 else: return
             case 4:
-                if prompt(f'[WARN]: {mod['name']} has no release for specified game version. continue?'):
+                if prompt(f'[WARN]: {mod["name"]} has no release for specified game version. continue?'):
                     return {
                         "name": mod['name'],
                         "project_id": mod['project_id'],
