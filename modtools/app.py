@@ -26,7 +26,7 @@ def main():
     if prompt(f'{len(modlist)} mods successfully loaded. download?'):
         try:
             batch_download(modlist, config['game']['mod_path'])
-            print(f'modtools successfully downloaded {len(modlist)} mods to {config['game']['mod_path']}')
+            print(f'modtools successfully downloaded {len(modlist)} mods to {config["game"]["mod_path"]}')
         except Exception as e:
             print(e)
             # print(getMod(collection[0]), args.version)
