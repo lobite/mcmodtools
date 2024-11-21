@@ -9,7 +9,7 @@ from modtools.utils import parse_args, parse_user_list, prompt, load_config, cre
 
 
 def main():
-    config = load_config(prod=False)
+    config = load_config(prod=True)
     args = parse_args()
     list_path = config["modtools"]["list_path"] + 'modlist.json'
     modlist_file = Path(list_path)
