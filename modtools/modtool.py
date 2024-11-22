@@ -45,8 +45,11 @@ class ModrinthAPI:
             if not mod_file.is_file():
                 self.ratelimit()
                 c = requests.get(file_to_get['url'])
-                mod_file.open('xb').write(c.content)
+                with mod_file.open('xb') as f:
+                    f.write(c.content)
                 print(f'downloaded {file_to_get["filename"]}')
+                mod['filename'] = file_to_get["filename"]
+                return mod
             else:
                 print(f'file for {mod["name"]} already exists, skipping')
         except requests.exceptions.RequestException as err:
@@ -54,6 +57,7 @@ class ModrinthAPI:
 
     def get_slug_from_id(self, mod_id):
         res = requests.get(f'https://modrinth.com/mod/{mod_id}', allow_redirects=False)
+        res.raise_for_status()
         return res.headers['location'].removeprefix('/mod/')
 
     def fetch_versions(self, query, game_version, slug):
@@ -82,7 +86,7 @@ class ModrinthAPI:
             else:
                 return {
                     'status': 4,
-                    'version': target_version['id'],
+                    'version': target_version,
                     'version_alt': None
                 }
         is_stable = any(
@@ -93,7 +97,7 @@ class ModrinthAPI:
         if target_version['version_type'] == "release":
             return {
                 'status': 0,
-                'version': target_version['id'],
+                'version': target_version,
                 'version_alt': None
             }
         elif is_stable and target_version['version_type'] != 'release':
@@ -105,14 +109,14 @@ class ModrinthAPI:
             print(f'[WARN]: latest version {target_version["name"]} for {mod_name} is {target_version["version_type"]}, and a release version {newest_release["name"]} is available.')
             return {
                 'status': 2,
-                'version': target_version['id'],
-                'version_alt': newest_release['id']
+                'version': target_version,
+                'version_alt': newest_release
             }
         elif not is_stable:
             print(f'[WARN]: {mod_name} has no stable release.')
             return {
                 'status': 3,
-                'version': target_version['id'],
+                'version': target_version,
                 'version_alt': None
             }
 
@@ -133,13 +137,15 @@ class ModrinthAPI:
 
         dependencies = []
         dependencies_alt = []
+        if candidates['status'] == 1:
+            return
         if candidates['version'] != None:
-            dependencies = self.check_dependencies(candidates['version'])
+            dependencies = self.check_dependencies(candidates['version']['id'])
         if candidates['version_alt'] != None:
-            dependencies_alt = self.check_dependencies(candidates['version'])
+            dependencies_alt = self.check_dependencies(candidates['version_alt']['id'])
         return {
-            "name": query if slug else self.get_slug_from_id(id),
-            "project_id": id,
+            "name": query if slug else self.get_slug_from_id(query),
+            "project_id": query if not slug else candidates['version']['project_id'],
             "versions": candidates,
             "dependencies": {
                 "version": dependencies,
@@ -152,43 +158,53 @@ class ModrinthAPI:
             case 0:
                 return {
                     "name": mod['name'],
+                    "version": mod['versions']['version']['name'],
+                    "version_type": mod['versions']['version']['version_type'],
                     "project_id": mod['project_id'],
-                    "version_id": mod['versions']['version'],
+                    "version_id": mod['versions']['version']['id'],
                     "dependencies": mod['dependencies']['version']
                 }
             case 1:
                 print(f'no compatible version was found for {mod["name"]}, and was skipped')
-                return
+                return None
             case 2:
                 if prompt(f'use release version over latest version for {mod["name"]}?'):
                     return {
                         "name": mod['name'],
+                        "version": mod['versions']['version_alt']['name'],
+                        "version_type": mod['versions']['version_alt']['version_type'],
                         "project_id": mod['project_id'],
-                        "version_id": mod['versions']['version_alt'],
+                        "version_id": mod['versions']['version_alt']['id'],
                         "dependencies": mod['dependencies']['version_alt']
                     }
                 else:
                     return {
                         "name": mod['name'],
+                        "version": mod['versions']['version']['name'],
+                        "version_type": mod['versions']['version']['version_type'],
                         "project_id": mod['project_id'],
-                        "version_id": mod['versions']['version'],
+                        "version_id": mod['versions']['version']['id'],
                         "dependencies": mod['dependencies']['version']
                     }
             case 3:
                 if prompt(f'[WARN]: {mod["name"]} has no stable release. continue?'):
                     return {
                         "name": mod['name'],
+                        "version": mod['versions']['version']['name'],
+                        "version_type": mod['versions']['version']['version_type'],
                         "project_id": mod['project_id'],
-                        "version_id": mod['versions']['version'],
+                        "version_id": mod['versions']['version']['id'],
                         "dependencies": mod['dependencies']['version']
                     }
-                else: return
+                else: return None
             case 4:
                 if prompt(f'[WARN]: {mod["name"]} has no release for specified game version. continue?'):
                     return {
                         "name": mod['name'],
+                        "version": mod['versions']['version']['name'],
+                        "version_type": mod['versions']['version']['version_type'],
                         "project_id": mod['project_id'],
-                        "version_id": mod['versions']['version'],
+                        "version_id": mod['versions']['version']['id'],
                         "dependencies": mod['dependencies']['version']
                     }
-                else: return
+                else: return None

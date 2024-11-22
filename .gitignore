@@ -1,6 +1,7 @@
 env/
 dist/
 test/
+mods/
 mcmodtools.egg-info/
 modlist.csv
 modtools/__pycache__

@@ -42,13 +42,10 @@ def parse_args():
         prog="modtools",
         description="A CLI tool to automatically download and maintain Minecraft mods from Modrinth",
     )
-    parser.add_argument("list_path",
+    parser.add_argument("-u", "--userlist",
                         help="Path to CSV list containing mods")
     parser.add_argument("-p", "--mod_path",
-                        help="Path to download mods to")
-    parser.add_argument("-v", "--version",
-                        default="1.21.1")
-    parser.add_argument("-u", "--update")
+                        help="Path to download mods to, if NOT specified in config")
     parser.add_argument("-i", "--install")
 
     return parser.parse_args()
@@ -94,20 +91,23 @@ def batch_download(batch, path):
         for mod in batch:
             futures.append(executor.submit(modAPI.download, mod=mod, path=path))
         for future in concurrent.futures.as_completed(futures):
-            try: future.result()
-            except Exception as e: raise e 
+            try: mod = future.result()
+            except Exception as e: raise e
+    return batch
 
 def create_modlist(userlist, path, game_version):
     modlist = batch_get_mod(userlist, game_version, slug=True)
     modlist_resolved = []
     for mod in modlist:
         modlist_resolved.append(modAPI.resolve_conflict(mod))
+    modlist_resolved = list(filter(lambda i: i is not None, modlist_resolved))
     print(f'loaded {len(modlist_resolved)} mods from provided list, checking missing dependencies...')
     discovered_dependencies_list = auto_get_dependencies(modlist_resolved)
     discovered_dependencies_list_named = []
     print("retrieveing names...")
     for dd in discovered_dependencies_list:
         discovered_dependencies_list_named.append(modAPI.get_slug_from_id(dd))
+        time.sleep(1)
     print(*discovered_dependencies_list_named, sep=', ')
     if not prompt("add missing dependencies to list?"):
         raise UserCancel('cancelled retrieving missing dependencies')
@@ -115,6 +115,7 @@ def create_modlist(userlist, path, game_version):
     discovered_dependencies_resolved = []
     for dd in discovered_dependencies:
         discovered_dependencies_resolved.append(modAPI.resolve_conflict(dd))
+    discovered_dependencies_resolved = list(filter(lambda i: i is not None, discovered_dependencies_resolved))
     modlist_resolved += discovered_dependencies_resolved
     with open(path, 'w') as f:
         json.dump(modlist_resolved, f, indent=4)
@@ -133,7 +134,6 @@ def auto_get_dependencies(modlist):
         if new_discovered == 0:
             break
         total_discovered += new_discovered
+    new_dependencies = list(filter(lambda i: i is not None, new_dependencies))
     print(f'{total_discovered} missing dependencies detected')
-    return filter(None, new_dependencies)
-    
-
+    return new_dependencies
