@@ -9,10 +9,13 @@ from modtools.utils import parse_args, parse_user_list, prompt, load_config, cre
 
 
 def main():
-    config = load_config(prod=False)
+    config = load_config(prod=True)
     args = parse_args()
-    list_path = config["modtools"]["list_path"] + 'modlist.json'
-    modlist_file = Path(list_path)
+    list_path = Path(config["modtools"]["list_path"])
+    if not list_path.is_dir():
+        list_path.mkdir()
+    list_file = config["modtools"]["list_path"] + 'modlist.json'
+    modlist_file = Path(list_file)
     userlist_exists = False
     setup = False
     if args.userlist != None:
@@ -26,7 +29,7 @@ def main():
     if not modlist_file.is_file():
         print('setting up')
         try:
-            modlist = create_modlist(parse_user_list(args.userlist), list_path, config['game']['game_version'])
+            modlist = create_modlist(parse_user_list(args.userlist), list_file, config['game']['game_version'])
             setup = True
         except UserCancel as e:
             print(e)
@@ -36,7 +39,7 @@ def main():
             modlist = json.load(f)
     elif (not setup) and prompt('generated list already exists. override?'):
         try:
-            modlist = create_modlist(parse_user_list(args.userlist), list_path, config['game']['game_version'])
+            modlist = create_modlist(parse_user_list(args.userlist), list_file, config['game']['game_version'])
         except UserCancel as e:
             print(e)
             return

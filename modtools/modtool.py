@@ -2,7 +2,6 @@ import requests
 import time
 from pathlib import Path
 from modtools.prompt import prompt
-from modtools.exceptions import UserCancel
 
 class ModrinthAPI:
     def __init__(self):

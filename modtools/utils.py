@@ -11,9 +11,12 @@ from modtools.prompt import prompt
 
 modAPI = ModrinthAPI()
 
-def load_config(prod=False):
+def load_config(prod=True):
     if prod:
-        config_file = Path(user_config_dir() + '/' + 'modtools-config.json')
+        config_path = Path(user_config_dir() + '/mcmodtools/')
+        if not config_path.is_dir():
+            config_path.mkdir()
+        config_file = Path(user_config_dir() + '/mcmodtools/' + 'mcmodtools-config.json')
         if config_file.is_file():
             with config_file.open('r') as f:
                 return json.load(f)
@@ -26,7 +29,7 @@ def load_config(prod=False):
                     "mod_path": "./mods/"
                 },
                 "modtools" : {
-                    "list_path": user_data_dir() + '/'
+                    "list_path": user_data_dir() + '/mcmodtools/'
                 }
             }
             with config_file.open('w') as f:
