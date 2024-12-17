@@ -12,3 +12,4 @@ is a user friendly CLI mod manager for Minecraft mods on Modrinth, written in Py
 - Search mods
 - Install/update/uninstall individual mods
 - Neofetch inspired mod profile viewer (number of mods, game version, file size, etc.)
+- Option to create a zip archive for easy sharing
