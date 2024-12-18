@@ -23,10 +23,11 @@ def load_config(prod=True):
         else:
             # create config file
             # the / after the directory is SUPER NECESSARY!!!!
+            mod_path = input(f'Specify mod folder location: ')
             defaults = {
                 "game" : {
                     "game_version": "1.21.1",
-                    "mod_path": "./mods/"
+                    "mod_path": mod_path
                 },
                 "modtools" : {
                     "list_path": user_data_dir() + '/mcmodtools/'
@@ -42,15 +43,20 @@ def load_config(prod=True):
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        prog="modtools",
+        prog="Modrinth Mod Manager (Emthree)",
         description="A CLI tool to automatically download and maintain Minecraft mods from Modrinth",
     )
-    parser.add_argument("-u", "--userlist",
-                        help="Path to CSV list containing mods")
-    parser.add_argument("-p", "--mod_path",
-                        help="Path to download mods to, if NOT specified in config")
-    parser.add_argument("-i", "--install")
+    subparsers = parser.add_subparsers(required=True, dest="subparser_name")
 
+    # subcommands: list, update, upgrade, install, remove
+    subc_list = subparsers.add_parser("list")
+    subc_update = subparsers.add_parser("update")
+    subc_upgrade = subparsers.add_parser("upgrade")
+    subc_install = subparsers.add_parser("install")
+    subc_remove = subparsers.add_parser("remove")
+    subc_userlist = subparsers.add_parser("userlist")
+    subc_userlist.add_argument("userlist",
+                        help="Path to CSV list containing mods")
     return parser.parse_args()
 
 
