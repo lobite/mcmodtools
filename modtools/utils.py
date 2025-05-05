@@ -46,16 +46,13 @@ def parse_args():
         prog="Modrinth Mod Manager (Emthree)",
         description="A CLI tool to automatically download and maintain Minecraft mods from Modrinth",
     )
-    subparsers = parser.add_subparsers(required=True, dest="subparser_name")
 
-    # subcommands: list, update, upgrade, install, remove
-    subc_list = subparsers.add_parser("list")
-    subc_update = subparsers.add_parser("update")
-    subc_upgrade = subparsers.add_parser("upgrade")
-    subc_install = subparsers.add_parser("install")
-    subc_remove = subparsers.add_parser("remove")
-    subc_userlist = subparsers.add_parser("userlist")
-    subc_userlist.add_argument("userlist",
+    subparsers = parser.add_subparsers()
+    parser_add = subparsers.add_parser('add')
+    parser_init = subparsers.add_parser('init')
+    parser_add.add_argument('mod', type=str)
+
+    parser_init.add_argument("-u", "--userlist",
                         help="Path to CSV list containing mods")
     return parser.parse_args()
 
