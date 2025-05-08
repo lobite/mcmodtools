@@ -10,7 +10,7 @@ from modtools.modtool import ModrinthAPI
 def init(args, config, modlist_file):
     userlist_exists = False
     setup = False
-    if args['userlist'] != None:
+    if args.userlist != None:
         userlist_exists = Path(args['userlist']).is_file()
         if not userlist_exists:
             print(f'{args['userlist']} does not exist.')

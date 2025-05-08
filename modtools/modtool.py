@@ -91,7 +91,7 @@ class ModrinthAPI:
         is_stable = any(
             v
             for v in all_versions
-            if (game_version in v['game_versions']) and (v['version_type'] == "release")
+            if (game_version in v['game_versions']) and (v['version_type'] == "release") and("fabric" in v['loaders'])
         )
         if target_version['version_type'] == "release":
             return {
