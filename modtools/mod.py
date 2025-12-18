@@ -1,5 +1,5 @@
-import logging
-from modtools.modtool import MODRINTH_API
+import logging, aiohttp
+from modtools.api import ModrinthAPI
 from pathlib import Path
 from datetime import datetime
 
@@ -16,51 +16,64 @@ class VersionStatus:
     MANUAL = 40 # version id manually set
 
 class Mod():
-    def __init__(self, query: str, game_version: str, is_slug: bool, version_id = None):
+    def __init__(self, api: ModrinthAPI, query: str, game_version: str, is_slug: bool, version_id:str = None):
         # allow passing an API instance for connection pooling. Otherwise, instantiate internally
-        self.API = MODRINTH_API
-
-        self.slug: str = query if is_slug else self.API.get_slug_from_id(query)
-        self.data = self.API.get(f'project/{query}')
-        self.project_id: str = self.data['id']
+        self.API = api
+        self.query = query
+        self.slug: str = query if is_slug else None
+        self.project_id: str = query if not is_slug else None
         self.game_version: str = game_version
+        self.manual_version_id: str = version_id
         self.version_status: int
         self.version = None
         self.version_alt = None
-        if not version_id:
-            # automatically search matching version
-            self._get_versions()
-        else:
-            # use manually specified version id (for retrieving dependencies)
-            self.version_status = VersionStatus.MANUAL
-            self.version = self.API.get(f'version/{version_id}')
         self._using_alt_ver = False
-        self._selected = False if self.version_status in (VersionStatus.LATEST_NONRELEASE_W_RELEASE, VersionStatus.LEGACY_NONRELEASE_W_RELEASE) else True
-        if self._selected: self.dependencies = self._fetch_dependencies()
+        self.poupulated = False
         self.installed = False
         self.path: Path = None
     
+    async def populate_data(self):
+        if self.slug == None:
+            try:
+                self.slug = await self.API.get_slug_from_id(self.query)
+            except aiohttp.ClientResponseError as e:
+                logger.warning(f'{self.query} is invalid. Error: {e}')
+                raise e
+        self.data = await self.API.get_async(f'project/{self.slug}')
+        if self.project_id == None: self.project_id = self.data['id']
+        if not self.manual_version_id:
+            # automatically search matching version
+            await self._get_versions()
+        else:
+            # use manually specified version id (for retrieving dependencies)
+            self.version_status = VersionStatus.MANUAL
+            self.version = await self.API.get_async(f'version/{self.manual_version_id}')
+        self._selected = False if self.version_status in (VersionStatus.LATEST_NONRELEASE_W_RELEASE, VersionStatus.LEGACY_NONRELEASE_W_RELEASE) else True
+        if self._selected: self.dependencies = await self._fetch_dependencies()
+        self.populated = True
+        return self
+
     @property
     def using_alt_ver(self):
         return self._using_alt_ver
     
     @using_alt_ver.setter
-    def use_alt(self):
+    async def use_alt(self):
         if not self.versions['status'] in (VersionStatus.LATEST_NONRELEASE_W_RELEASE, VersionStatus.LEGACY_NONRELEASE_W_RELEASE):
             logger.info(f'use_alt() was called on {self.slug}, but this mod has no alt versions. Ignoring.')
             pass
         else:
             self._using_alt_ver = True
             self._selected = True
-            self._fetch_dependencies()
+            await self._fetch_dependencies()
     
     @property
     def selected(self):
         return self.selected
     
-    def _get_versions(self):
+    async def _get_versions(self):
         # fetch_versions sorts versions by release date, so next() should return the latest matching version
-        all_versions = self.API.fetch_versions(self.slug)
+        all_versions = await self.API.fetch_versions(self.slug)
 
         # find compatible versions
         target_versions = list(filter(
@@ -161,24 +174,30 @@ class Mod():
         self.version = version
         self.version_alt = version_alt
     
-    def _fetch_dependencies(self):
+    async def _fetch_dependencies(self):
         version = self.version_alt if self._using_alt_ver else self.version
         try:
-            return self.API.check_dependencies(version['id'])
-        except TypeError:
+            return await self.API.check_dependencies(version['id'])
+        except TypeError as e:
+            print(e)
             print(version)
             logger.fatal(f'{self.slug} has no version data, code {self.version_status}')
     
     def get_dependencies(self) -> list['Mod']:
         res = []
         for d in self.dependencies:
-            res.append(Mod(d['project_id'], self.game_version, is_slug=False, version_id = d['version_id']))
+            res.append(Mod(self.API, d['project_id'], self.game_version, is_slug=False, version_id = d['version_id']))
         return res
 
-    def install(self, install_dir: Path):
+    async def install(self, install_dir: Path):
         version = self.version_alt if self._using_alt_ver else self.version
         if not version: logger.fatal(f'{self.slug} has no version data, code {self.version_status}')
-        mod_location = self.API.download(version['id'], install_dir)
+        try:
+            file_to_get = next(f for f in version['files'] if f['primary'] == True)
+        except StopIteration:
+            logger.error(f"{self.slug} {version['name']} has no primary file, proceeding with first file in list")
+            file_to_get = version['files'][0]
+        mod_location = await self.API.download(file_to_get, install_dir)
         self.path = mod_location
         self.installed = True
         return mod_location

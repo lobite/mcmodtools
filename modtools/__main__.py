@@ -1,2 +1,4 @@
 from modtools.app import main
-main()
+import asyncio
+# main()
+asyncio.run(main())

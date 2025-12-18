@@ -1,14 +1,11 @@
-import argparse, json, time, logging, re
+import argparse, json, logging, re
 from pathlib import Path
-import concurrent.futures
 from platformdirs import user_config_dir, user_data_dir
-from modtools.modtool import MODRINTH_API
-from modtools.exceptions import UserCancel
 from modtools.mod import Mod, VersionStatus
 
 logger = logging.getLogger(__name__)
 
-modAPI = MODRINTH_API
+# modAPI = MODRINTH_API
 
 def load_config(prod=True):
     if prod:
@@ -79,9 +76,11 @@ def load_userlist(list_path: Path) -> list[str]:
         return userlist
     else: logger.warning(f'{Path} does not exist.')
 
-def get_mod(query, game_version, is_slug) -> Mod:
+async def get_mod(api_session, query, game_version, is_slug) -> Mod:
     logger.info(f'fetching mod {query}')
-    mod = Mod(query, game_version, is_slug)
+    mod = Mod(api_session, query, game_version, is_slug)
+    await mod.populate_data()
+    logger.info(f'fetched mod {query}')
     if mod.version_status in (VersionStatus.LEGACY_NONRELEASE_ONLY, VersionStatus.LEGACY_RELEASE, VersionStatus.LEGACY_NONRELEASE_W_RELEASE):
         logger.warning(f"{mod.slug} doesn't explicitly support {game_version}. Please check if it is maintained at https://modrinth.com/mod/{mod.slug}")
         if not prompt("Continue with no support for specified game version?"): return
@@ -96,60 +95,3 @@ def get_mod(query, game_version, is_slug) -> Mod:
         bleeding_edge = prompt(f"Use bleeding edge version?")
         if bleeding_edge: mod.use_alt()
     return mod
-
-def batch_get_mod(batch_query: list[str], game_version: str, is_slug) -> list[Mod]:
-    # since this uses multithreading, pass an API instance to prevent getting rate limited
-    batch_mods: list[Mod] = []
-    for i in batch_query:
-        logger.info(f'fetching {i}...')
-        batch_mods.append(get_mod(i, game_version, is_slug))
-        logger.info(f'fetched {i}')
-    return batch_mods
-
-def batch_download(batch: list[Mod], install_dir: Path):
-    for m in batch:
-        path = m.install(install_dir)
-    
-
-def create_modlist(userlist, path, game_version):
-    modlist = batch_get_mod(userlist, game_version, slug=True)
-    modlist_resolved = []
-    for mod in modlist:
-        modlist_resolved.append(modAPI.resolve_conflict(mod))
-    modlist_resolved = list(filter(lambda i: i is not None, modlist_resolved))
-    print(f'loaded {len(modlist_resolved)} mods from provided list, checking missing dependencies...')
-    discovered_dependencies_list = auto_get_dependencies(modlist_resolved)
-    discovered_dependencies_list_named = []
-    print("retrieveing names...")
-    for dd in discovered_dependencies_list:
-        discovered_dependencies_list_named.append(modAPI.get_slug_from_id(dd))
-        time.sleep(1)
-    print(*discovered_dependencies_list_named, sep=', ')
-    if not prompt("add missing dependencies to list?"):
-        raise UserCancel('cancelled retrieving missing dependencies')
-    discovered_dependencies = batch_get_mod(discovered_dependencies_list, game_version, slug=False)
-    discovered_dependencies_resolved = []
-    for dd in discovered_dependencies:
-        discovered_dependencies_resolved.append(modAPI.resolve_conflict(dd))
-    discovered_dependencies_resolved = list(filter(lambda i: i is not None, discovered_dependencies_resolved))
-    modlist_resolved += discovered_dependencies_resolved
-    with open(path, 'w') as f:
-        json.dump(modlist_resolved, f, indent=4)
-    return modlist_resolved
-
-def auto_get_dependencies(modlist):
-    known_dependencies = set([d for m in modlist for d in m['dependencies']])
-    new_dependencies = []
-    total_discovered = 0
-    while True:
-        new_discovered = 0
-        for d in known_dependencies:
-            if (not any(m['project_id'] == d for m in modlist)) and (not any(nd == d for nd in new_dependencies)):
-                new_dependencies.append(d)
-                new_discovered += 1
-        if new_discovered == 0:
-            break
-        total_discovered += new_discovered
-    new_dependencies = list(filter(lambda i: i is not None, new_dependencies))
-    print(f'{total_discovered} missing dependencies detected')
-    return new_dependencies

@@ -1,15 +1,15 @@
-import json, argparse, logging
+import json, argparse, logging, aiohttp, asyncio, time
 from pathlib import Path
-from modtools.exceptions import UserCancel
-from modtools.utils import get_mod, prompt, load_config, batch_download, batch_get_mod, load_userlist
+from modtools.utils import get_mod, prompt, load_config, load_userlist
 from modtools.mod import Mod
+from modtools.api import ModrinthAPI
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 
 # TODO: Pass optional arguments to config
 
-def init(args, config: dict, modlist_file: Path):
+async def init(args, config: dict, modlist_file: Path):
     # check user supplied list
     ul = None
     if args.userlist and Path(args.userlist).is_file():
@@ -34,66 +34,82 @@ def init(args, config: dict, modlist_file: Path):
         return
     game_ver = config['game']['game_version']
     print(*mods_to_load, sep=', ')
-    mods = [get_mod(q, game_ver, is_slug=True) for q in mods_to_load]
-    mods = list(filter(None, mods))
-    slugs = [mod.slug for mod in mods]
-    print(*slugs, sep=', ')
-    logger.info(f'{len(slugs)} mods successfully loaded. Checking for dependencies...')
 
-    # algorithm for recursively searching dependencies
-    dependencies = []
-    dependencies_new = []
-    # first, add known dependencies that aren't already in the list
-    for m in mods:
-        to_add = list(filter(lambda d: d['slug'] not in slugs, m.dependencies))
-        discovered = [Mod(d['slug'], game_ver, is_slug=True, version_id = d['version_id']) for d in to_add]
-        discovered = list(filter(None, discovered))
-        dependencies_new += discovered
-        slugs += [mod.slug for mod in discovered]
+    async with aiohttp.ClientSession() as session:
+        api_session = ModrinthAPI(session)
+        mods_tasks = [get_mod(api_session, q, game_ver, is_slug=True) for q in mods_to_load]
+        mods = await asyncio.gather(*mods_tasks)
+        mods = list(filter(None, mods))
+        ids = [mod.project_id for mod in mods]
+        logger.info(f'{len(ids)} mods successfully loaded. Checking for dependencies...')
 
-    dependencies += dependencies_new
-    
-    # recursively search and add dependencies until no new ones are discovered
-    last_len = 0
-    while len(dependencies) != last_len:
-        discovered_new = []
-        for m in dependencies_new:
-            to_add = list(filter(lambda d: d['slug'] not in slugs, m.dependencies))
-            discovered = [Mod(d['slug'], game_ver, is_slug=True, version_id = d['version_id']) for d in to_add]
+        # algorithm for recursively searching dependencies
+        dependencies = []
+        dependencies_new = []
+        # first, add known dependencies that aren't already in the list
+        for m in mods:
+            to_add = list(filter(lambda d: d['project_id'] not in ids, m.dependencies))
+            discovered = [Mod(api_session, d['project_id'], game_ver, is_slug=False, version_id = d['version_id']) for d in to_add]
             discovered = list(filter(None, discovered))
-            discovered_new += discovered
-            slugs += [mod.slug for mod in discovered]
+            populate_task = [m.populate_data() for m in discovered]
+            for res in asyncio.as_completed(populate_task):
+                d = await res
+                logger.info(f'Found and loaded dependency {d.slug}')
+            dependencies_new += discovered
+            ids += [mod.project_id for mod in discovered]
         dependencies += dependencies_new
-        dependencies_new = discovered_new
-        last_len = len(dependencies)
+        
+        # recursively search and add dependencies until no new ones are discovered
+        last_len = 0
+        while len(dependencies) != last_len:
+            discovered_new = []
+            for m in dependencies_new:
+                to_add = list(filter(lambda d: d['project_id'] not in ids, m.dependencies))
+                discovered = [Mod(api_session, d['project_id'], game_ver, is_slug=False, version_id = d['version_id']) for d in to_add]
+                discovered = list(filter(None, discovered))
+                populate_task = [m.populate_data() for m in discovered]
+                for res in asyncio.as_completed(populate_task):
+                    d = await res
+                    logger.info(f'Found and loaded dependency {d.slug}')
+                discovered_new += discovered
+                ids += [mod.id for mod in discovered]
+            dependencies += discovered_new
+            dependencies_new = discovered_new
+            last_len = len(dependencies)
+        logger.info(f'Loaded the following {len(mods)} from list:')
+        print(*[m.slug for m in mods], sep=' ')
+        logger.info(f'Found the following {last_len} dependencies:')
+        print(*[d.slug for d in dependencies], sep=' ')
 
-    logger.info(f'Found the following dependencies:')
-    print(*[d.slug for d in dependencies])
-
-    if prompt('Download all?'):
-        if not any(Path(config['game']['mod_path']).iterdir()):
-            try:
-                batch_download(mods + dependencies, Path(config['game']['mod_path']))
-                logger.info(f'Emthree successfully downloaded {len(mods + dependencies)} mods to {config["game"]["mod_path"]}')
-                
-            except Exception as e:
-                raise e
-        else:
-            logger.warning(f'Directory is not empty. Proceeding without downloading.')
+        if prompt('Download all?'):
+            if not any(Path(config['game']['mod_path']).iterdir()):
+                try:
+                    install_task = [m.install(Path(config['game']['mod_path'])) for m in mods + dependencies]
+                    for finished_dl in asyncio.as_completed(install_task):
+                        res = await finished_dl
+                        logger.info(f'Finished downloading {res}')
+                    logger.info(f'Emthree successfully downloaded {len(mods + dependencies)} mods to {config["game"]["mod_path"]}')
+                    
+                except Exception as e:
+                    raise e
+            else:
+                logger.warning(f'Directory is not empty. Aborted download operation.')
+        logger.info(f'Made {api_session.reqcount_total} requests in {round(time.time() - api_session.init_req, 2)} secs\n')
     if prompt('Write result to file?'):
         with open(modlist_file, 'w') as f:
             modlist_dict = [m.create_dict() for m in mods]
             json.dump(modlist_dict, f, indent=4)
     
         
-def add_mod(args, config, modlist_file):
+async def add_mod(args, config, modlist_file):
     mod_name = args.mod
     with open(modlist_file, "r") as f:
         known_mods = json.load(f)
     if any(m["name"] == mod_name for m in known_mods):
         logger.info("This mod already exists")
         return
-    mod = get_mod(mod_name, config["game"]["game_version"], is_slug=True)
+    api_session = ModrinthAPI()
+    mod = await get_mod(api_session, mod_name, config["game"]["game_version"], is_slug=True)
     if mod: dependencies: list[Mod] = mod.get_dependencies()
 
     # recursively search dependencies
@@ -108,7 +124,15 @@ def add_mod(args, config, modlist_file):
         with open(modlist_file, "w") as f:
             json.dump(known_mods + mods_to_add, f, indent=4)
         if prompt("Download all?"):
-            batch_download(mods_to_add, config["game"]["mod_path"])
+            try:
+                install_task = [m.install(Path(config['game']['mod_path'])) for m in mods_to_add]
+                async for finished_dl in asyncio.as_completed(install_task):
+                    res = await finished_dl
+                    logger.info(f'Finished downloading {res}')
+                logger.info(f'Emthree successfully downloaded {len(mods_to_add)} mods to {config["game"]["mod_path"]}')
+                
+            except Exception as e:
+                raise e
 
 def list_installed(args, config, modlist_file):
     try:
@@ -124,7 +148,7 @@ def list_installed(args, config, modlist_file):
         print(f'- {mod['name']}: {mod['filename'] if installed else "NOT INSTALLED"}')
     print("Caution: Emthree only tracks mods listed in modlist.json. It has no knowledge of mods you may have added manually.")
 
-def main():
+async def main():
     config = load_config(prod=False)
 
     # command arguments initiation
@@ -157,8 +181,9 @@ def main():
     modlist_file = list_path / 'modlist.json'
 
     args = parser.parse_args()
+
     
-    args.func(args, config=config, modlist_file=modlist_file)
+    await args.func(args, config=config, modlist_file=modlist_file)
     
 
 
