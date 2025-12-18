@@ -1,28 +1,26 @@
-import csv
-import argparse
-import json
-import time
+import argparse, json, time, logging, re
 from pathlib import Path
 import concurrent.futures
 from platformdirs import user_config_dir, user_data_dir
-from modtools.modtool import ModrinthAPI
+from modtools.modtool import MODRINTH_API
 from modtools.exceptions import UserCancel
-from modtools.prompt import prompt
+from modtools.mod import Mod, VersionStatus
 
-modAPI = ModrinthAPI()
+logger = logging.getLogger(__name__)
+
+modAPI = MODRINTH_API
 
 def load_config(prod=True):
     if prod:
-        config_path = Path(user_config_dir() + '/mcmodtools/')
+        config_path = Path(user_config_dir()) / 'mcmodtools'
         if not config_path.is_dir():
             config_path.mkdir()
-        config_file = Path(user_config_dir() + '/mcmodtools/' + 'mcmodtools-config.json')
+        config_file = Path(user_config_dir()) / 'mcmodtools' / 'mcmodtools-config.json'
         if config_file.is_file():
             with config_file.open('r') as f:
                 return json.load(f)
         else:
             # create config file
-            # the / after the directory is SUPER NECESSARY!!!!
             mod_path = input(f'Specify mod folder location: ')
             defaults = {
                 "game" : {
@@ -30,7 +28,7 @@ def load_config(prod=True):
                     "mod_path": mod_path
                 },
                 "modtools" : {
-                    "list_path": user_data_dir() + '/mcmodtools/'
+                    "list_path": Path(user_data_dir()) / 'mcmodtools'
                 }
             }
             with config_file.open('w') as f:
@@ -40,6 +38,14 @@ def load_config(prod=True):
     else:
         with open('test/config.json', 'r') as config_file:
             return json.load(config_file)
+
+def prompt(q: str) -> bool:
+    while True:
+        i = input(f'{q} (Y/n): ')
+        if i == 'Y':
+            return True
+        elif i == 'n':
+            return False
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -56,50 +62,54 @@ def parse_args():
                         help="Path to CSV list containing mods")
     return parser.parse_args()
 
+def load_userlist(list_path: Path) -> list[str]:
+    if list_path.exists():
+        try:
+            with open(list_path, 'r') as f:
+                userlist = []
+                for l in f:
+                    name = l.rstrip('\n')
+                    if re.fullmatch("^[\\w!@$()`.+,\"\\-']{3,64}$", name):
+                        userlist.append(name)
+                    else:
+                        logger.warning(f'Keyword {name} is not allowed. Check for typos. Exiting...')
+                        return
+        except Exception as e:
+            logger.error(e)
+        return userlist
+    else: logger.warning(f'{Path} does not exist.')
 
-def parse_user_list(path):
-    prefix_a = "https://modrinth.com/mod/"
-    prefix_b = "https://modrinth.com/datapack/"
-    column_modrinth_link = 4
-    column_server_side = 8
-    userlist = []
-    with open(path, "r", newline='') as csvfile:
-        csvreader = csv.reader(csvfile)
-        for row in csvreader:
-            if row[column_server_side] == "TRUE":
-                modName = row[column_modrinth_link].replace(prefix_a, '').replace(prefix_b, '')
-                userlist.append(modName)
-                userlist = list(filter(None, userlist))
-    return userlist
+def get_mod(query, game_version, is_slug) -> Mod:
+    logger.info(f'fetching mod {query}')
+    mod = Mod(query, game_version, is_slug)
+    if mod.version_status in (VersionStatus.LEGACY_NONRELEASE_ONLY, VersionStatus.LEGACY_RELEASE, VersionStatus.LEGACY_NONRELEASE_W_RELEASE):
+        logger.warning(f"{mod.slug} doesn't explicitly support {game_version}. Please check if it is maintained at https://modrinth.com/mod/{mod.slug}")
+        if not prompt("Continue with no support for specified game version?"): return
+    if mod.version_status == VersionStatus.UNAVAILABLE:
+        logger.warning(f"{mod.slug} doesn't support fabric.")
+        return
+    if mod.version_status in (VersionStatus.LATEST_NONRELEASE_W_RELEASE, VersionStatus.LEGACY_NONRELEASE_W_RELEASE):
+        logger.info(f"{mod.slug} has a newer {mod.version_alt['version_type']} \
+            version {mod.version_alt['version_number']} compared to release version \
+            {mod.version['version_number']}.")
+        logger.info(f"Read changelogs here and make an informed decision. https://modrinth.com/mod/{mod.slug}")
+        bleeding_edge = prompt(f"Use bleeding edge version?")
+        if bleeding_edge: mod.use_alt()
+    return mod
 
-def batch_get_mod(batch, game_version, slug):
-    batch_mods = []
-    # for mod in batch:
-    #     batch_mods.append(modAPI.get_mod(mod, game_version))
-    with concurrent.futures.ThreadPoolExecutor() as executor:
-        futures = []
-        # count = 0
-        for mod in batch:
-            futures.append(executor.submit(modAPI.get_mod, query=mod, game_version = game_version, slug = slug))
-            print(f'fetching {mod}...')
-            # count += 1
-            # if count % 5 == 0:
-            #     time.sleep(5)
-        for future in concurrent.futures.as_completed(futures):
-            res_mod = future.result()
-            batch_mods.append(res_mod)
-            print(f'fetched mod {res_mod["name"]}')
+def batch_get_mod(batch_query: list[str], game_version: str, is_slug) -> list[Mod]:
+    # since this uses multithreading, pass an API instance to prevent getting rate limited
+    batch_mods: list[Mod] = []
+    for i in batch_query:
+        logger.info(f'fetching {i}...')
+        batch_mods.append(get_mod(i, game_version, is_slug))
+        logger.info(f'fetched {i}')
     return batch_mods
 
-def batch_download(batch, path):
-    with concurrent.futures.ThreadPoolExecutor() as executor:
-        futures = []
-        for mod in batch:
-            futures.append(executor.submit(modAPI.download, mod=mod, path=path))
-        for future in concurrent.futures.as_completed(futures):
-            try: mod = future.result()
-            except Exception as e: raise e
-    return batch
+def batch_download(batch: list[Mod], install_dir: Path):
+    for m in batch:
+        path = m.install(install_dir)
+    
 
 def create_modlist(userlist, path, game_version):
     modlist = batch_get_mod(userlist, game_version, slug=True)
