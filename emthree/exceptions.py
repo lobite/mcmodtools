@@ -1,2 +1,0 @@
-class UserCancel(Exception):
-    pass

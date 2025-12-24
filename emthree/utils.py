@@ -9,10 +9,10 @@ logger = logging.getLogger(__name__)
 
 def load_config(prod=True):
     if prod:
-        config_path = Path(user_config_dir()) / 'mcmodtools'
+        config_path = Path(user_config_dir()) / 'emthree'
         if not config_path.is_dir():
             config_path.mkdir()
-        config_file = Path(user_config_dir()) / 'mcmodtools' / 'mcmodtools-config.json'
+        config_file = Path(user_config_dir()) / 'emthree' / 'emthree-config.json'
         if config_file.is_file():
             with config_file.open('r') as f:
                 return json.load(f)
@@ -21,11 +21,11 @@ def load_config(prod=True):
             mod_path = input(f'Specify mod folder location: ')
             defaults = {
                 "game" : {
-                    "game_version": "1.21.1",
+                    "game_version": "1.21.11",
                     "mod_path": mod_path
                 },
-                "modtools" : {
-                    "list_path": Path(user_data_dir()) / 'mcmodtools'
+                "emthree" : {
+                    "list_path": Path(user_data_dir()) / 'emthree'
                 }
             }
             with config_file.open('w') as f:

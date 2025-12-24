@@ -153,7 +153,7 @@ async def main():
 
     # command arguments initiation
     parser = argparse.ArgumentParser(
-        prog="modtools",
+        prog="emthree",
         description="A CLI tool to automatically download and maintain Minecraft mods from Modrinth",
     )
 
@@ -175,7 +175,7 @@ async def main():
     parser_list = subparsers.add_parser('list')
     parser_list.set_defaults(func=list_installed)
 
-    list_path = Path(config["modtools"]["list_path"])
+    list_path = Path(config["emthree"]["list_path"])
     if not list_path.is_dir():
         list_path.mkdir()
     modlist_file = list_path / 'modlist.json'
