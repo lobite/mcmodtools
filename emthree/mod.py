@@ -1,5 +1,5 @@
 import logging, aiohttp
-from modtools.api import ModrinthAPI
+from emthree.api import ModrinthAPI
 from pathlib import Path
 from datetime import datetime
 
@@ -119,9 +119,9 @@ class Mod():
                 else:
                     # the alpha/beta bleeding edge version exists, but a release also exists.
                     # user must pick.
-                    self.version_status = VersionStatus.LATEST_NONRELEASE_W_RELEASE
-                    self.version = release_version_latest
-                    self.version_alt = nonrelease_version_latest
+                    status = VersionStatus.LATEST_NONRELEASE_W_RELEASE
+                    version = release_version_latest
+                    version_alt = nonrelease_version_latest
         else:
             # the mod does not support the current version of the game explicitly. it may still support it implicitly
             logger.warning(f'No versions of {self.slug} found for {self.game_version}')
@@ -143,7 +143,7 @@ class Mod():
                 logger.warning(f"Could not a find compatible version of {self.slug} for fabric. Skipping")
                 
                 status = VersionStatus.UNAVAILABLE
-                version = None,
+                version = None
                 version_alt = None
                 
             elif not target_version_release and target_version_nonrelease:

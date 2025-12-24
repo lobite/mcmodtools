@@ -1,7 +1,7 @@
 import argparse, json, logging, re
 from pathlib import Path
 from platformdirs import user_config_dir, user_data_dir
-from modtools.mod import Mod, VersionStatus
+from emthree.mod import Mod, VersionStatus
 
 logger = logging.getLogger(__name__)
 
@@ -76,9 +76,9 @@ def load_userlist(list_path: Path) -> list[str]:
         return userlist
     else: logger.warning(f'{Path} does not exist.')
 
-async def get_mod(api_session, query, game_version, is_slug) -> Mod:
+async def get_mod(api_session, query: str, game_version: str, is_slug: bool, version_id: str = None) -> Mod:
     logger.info(f'fetching mod {query}')
-    mod = Mod(api_session, query, game_version, is_slug)
+    mod = Mod(api_session, query, game_version, is_slug, version_id=version_id)
     await mod.populate_data()
     logger.info(f'fetched mod {query}')
     if mod.version_status in (VersionStatus.LEGACY_NONRELEASE_ONLY, VersionStatus.LEGACY_RELEASE, VersionStatus.LEGACY_NONRELEASE_W_RELEASE):

@@ -1,8 +1,8 @@
 import json, argparse, logging, aiohttp, asyncio, time
 from pathlib import Path
-from modtools.utils import get_mod, prompt, load_config, load_userlist
-from modtools.mod import Mod
-from modtools.api import ModrinthAPI
+from emthree.utils import get_mod, prompt, load_config, load_userlist
+from emthree.mod import Mod
+from emthree.api import ModrinthAPI
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
@@ -49,11 +49,11 @@ async def init(args, config: dict, modlist_file: Path):
         # first, add known dependencies that aren't already in the list
         for m in mods:
             to_add = list(filter(lambda d: d['project_id'] not in ids, m.dependencies))
-            discovered = [Mod(api_session, d['project_id'], game_ver, is_slug=False, version_id = d['version_id']) for d in to_add]
-            discovered = list(filter(None, discovered))
-            populate_task = [m.populate_data() for m in discovered]
+            populate_task = [get_mod(api_session, d['project_id'], game_ver, is_slug=False, version_id = d['version_id']) for d in to_add]
+            discovered = []
             for res in asyncio.as_completed(populate_task):
                 d = await res
+                discovered += [d]
                 logger.info(f'Found and loaded dependency {d.slug}')
             dependencies_new += discovered
             ids += [mod.project_id for mod in discovered]
@@ -65,11 +65,11 @@ async def init(args, config: dict, modlist_file: Path):
             discovered_new = []
             for m in dependencies_new:
                 to_add = list(filter(lambda d: d['project_id'] not in ids, m.dependencies))
-                discovered = [Mod(api_session, d['project_id'], game_ver, is_slug=False, version_id = d['version_id']) for d in to_add]
-                discovered = list(filter(None, discovered))
-                populate_task = [m.populate_data() for m in discovered]
+                populate_task = [get_mod(api_session, d['project_id'], game_ver, is_slug=False, version_id = d['version_id']) for d in to_add]
+                discovered = []
                 for res in asyncio.as_completed(populate_task):
                     d = await res
+                    discovered += [d]
                     logger.info(f'Found and loaded dependency {d.slug}')
                 discovered_new += discovered
                 ids += [mod.id for mod in discovered]
@@ -134,7 +134,7 @@ async def add_mod(args, config, modlist_file):
             except Exception as e:
                 raise e
 
-def list_installed(args, config, modlist_file):
+async def list_installed(args, config, modlist_file):
     try:
         with modlist_file.open('r') as f:
             modlist = json.load(f)

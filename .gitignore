@@ -2,8 +2,8 @@ env/
 dist/
 test/
 mods/
-mcmodtools.egg-info/
+emthree.egg-info/
 modlist.csv
-modtools/__pycache__
+emthree/__pycache__
 modlist.json
 config.json

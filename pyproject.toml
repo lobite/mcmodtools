@@ -3,8 +3,8 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "mcmodtools"
-version = "0.0.1"
+name = "emthree"
+version = "0.1.0"
 description = "A CLI tool to automatically download and maintain Minecraft mods from Modrinth"
 readme = "README.md"
 requires-python = ">=3.8"
@@ -15,4 +15,4 @@ classifiers = [
 ]
 
 [tool.setuptools]
-packages = ["modtools"]
+packages = ["emthree"]
