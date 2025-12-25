@@ -55,7 +55,8 @@ async def init(args, config: dict, modlist_file: Path):
                 d = await res
                 discovered.append(d)
                 logger.info(f'Found and loaded dependency {d.slug}')
-            dependencies_new += list(filter(None, discovered))
+            discovered = list(filter(None, discovered))
+            dependencies_new += discovered
             ids += [mod.project_id for mod in discovered]
         dependencies += dependencies_new
         
@@ -71,7 +72,8 @@ async def init(args, config: dict, modlist_file: Path):
                     d = await res
                     discovered.append(d)
                     logger.info(f'Found and loaded dependency {d.slug}')
-                discovered_new += list(filter(None, discovered))
+                discovered = list(filter(None, discovered))
+                discovered_new += discovered
                 ids += [mod.id for mod in discovered]
             dependencies += discovered_new
             dependencies_new = discovered_new
