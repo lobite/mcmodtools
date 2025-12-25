@@ -60,7 +60,7 @@ class Mod():
         else:
             self._using_alt_ver = True if use else False
             self._selected = True
-            await self._fetch_dependencies()
+            self.dependencies = await self._fetch_dependencies()
     
     async def _get_versions(self):
         # fetch_versions sorts versions by release date, so next() should return the latest matching version
