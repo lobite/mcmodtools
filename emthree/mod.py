@@ -52,24 +52,15 @@ class Mod():
         if self._selected: self.dependencies = await self._fetch_dependencies()
         self.populated = True
         return self
-
-    @property
-    def using_alt_ver(self):
-        return self._using_alt_ver
     
-    @using_alt_ver.setter
-    async def use_alt(self):
-        if not self.versions['status'] in (VersionStatus.LATEST_NONRELEASE_W_RELEASE, VersionStatus.LEGACY_NONRELEASE_W_RELEASE):
+    async def use_alt(self, use):
+        if not self.version_status in (VersionStatus.LATEST_NONRELEASE_W_RELEASE, VersionStatus.LEGACY_NONRELEASE_W_RELEASE):
             logger.info(f'use_alt() was called on {self.slug}, but this mod has no alt versions. Ignoring.')
             pass
         else:
-            self._using_alt_ver = True
+            self._using_alt_ver = True if use else False
             self._selected = True
             await self._fetch_dependencies()
-    
-    @property
-    def selected(self):
-        return self.selected
     
     async def _get_versions(self):
         # fetch_versions sorts versions by release date, so next() should return the latest matching version

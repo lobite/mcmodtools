@@ -93,5 +93,6 @@ async def get_mod(api_session, query: str, game_version: str, is_slug: bool, ver
             {mod.version['version_number']}.")
         logger.info(f"Read changelogs here and make an informed decision. https://modrinth.com/mod/{mod.slug}")
         bleeding_edge = prompt(f"Use bleeding edge version?")
-        if bleeding_edge: mod.use_alt()
+        if bleeding_edge: mod.use_alt(True)
+        else: mod.use_alt(False)
     return mod

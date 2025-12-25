@@ -63,7 +63,7 @@ class ModrinthAPI():
         # query is either the mod slug or the mod project id
         url = f'project/{query}/version'
         all_versions = await self.get_async(url)
-        all_versions.sort(key=lambda v: datetime.fromisoformat(v['date_published']))
+        all_versions.sort(key=lambda v: datetime.fromisoformat(v['date_published']), reverse=True)
         return all_versions
 
     async def check_dependencies(self, version_id) -> list[str]:

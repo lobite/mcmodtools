@@ -53,9 +53,9 @@ async def init(args, config: dict, modlist_file: Path):
             discovered = []
             for res in asyncio.as_completed(populate_task):
                 d = await res
-                discovered += [d]
+                discovered.append(d)
                 logger.info(f'Found and loaded dependency {d.slug}')
-            dependencies_new += discovered
+            dependencies_new += list(filter(None, discovered))
             ids += [mod.project_id for mod in discovered]
         dependencies += dependencies_new
         
@@ -69,9 +69,9 @@ async def init(args, config: dict, modlist_file: Path):
                 discovered = []
                 for res in asyncio.as_completed(populate_task):
                     d = await res
-                    discovered += [d]
+                    discovered.append(d)
                     logger.info(f'Found and loaded dependency {d.slug}')
-                discovered_new += discovered
+                discovered_new += list(filter(None, discovered))
                 ids += [mod.id for mod in discovered]
             dependencies += discovered_new
             dependencies_new = discovered_new
